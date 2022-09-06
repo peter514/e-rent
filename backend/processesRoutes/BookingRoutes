@@ -1,0 +1,251 @@
+// modules imports
+const express=require('express');
+const con = require('../Configuration');
+const nodemailer= require('nodemailer')
+const routes= express.Router();
+const message= require('../messages');
+const  Randomstring =require('randomstring') ;
+
+//routes
+
+
+routes.post('/book',(req,res)=>{
+    // generating a book id
+const random  = Randomstring.generate({
+    length:9,
+    charset:'alphanumeric'
+});
+const bookId = `book-${random}`;
+const postId= req.body.postId;
+const vaccant=req.body.vaccant;
+   const bookigData={
+       bookId:bookId,
+       userId:req.body.userId,
+       userName:req.body.userName,
+       phone:req.body.phone,
+       email:req.body.email,
+       noOfRooms:req.body.noOfRooms,
+       dateIn:req.body.dateIn,
+       propertyName:req.body.propertyName,
+       landlordId:req.body.landlordId,
+       landlordPhone:req.body.landlordPhone,
+       landlordEmail:req.body.landlordEmail
+
+   }
+  
+   //query to book 
+   const sql ="INSERT INTO book SET ?"
+   //Execute 
+   con.query(sql,bookigData,(err,results)=>{
+       if(err){
+           console.log(`Booking unsucessful>>${err}`)
+           const errorText={
+               message:`${message.name}>> ${message.processError} \n Booking failed! Try again!`,
+               status:false
+           }
+           res.send(errorText);
+
+       }
+       else if (bookigData.noOfRooms>vaccant){
+        const errorText={
+            message:`There are only ${vaccant} vaccant(s) available!!`,
+            status2:false
+        }
+        res.send(errorText);           
+
+       }
+       
+       else{      
+         // sendind email
+          // 1 define transport 
+            const transporter= nodemailer.createTransport({
+                service:'gmail',
+                auth:{
+                    user:'erentsystem.service@gmail.com',
+                    pass:'erent#3027'
+                },
+                tls:{
+                    rejectUnauthorized:false,
+                }
+            })
+           //setting the mailOptions
+           //text in html_          
+            const mailData={
+                from:'erentsystem.service@gmail.com',
+                to:bookigData.email,
+                subject:'Erent System Booking Details',
+                html:`<html>
+                <style>
+                .bg{
+                    background-color: green;
+                    padding:5px;
+                }
+                </style>
+                <h2 class='bg'>Erent system Booking Acknowledgement Mail</h2>
+                 <p >Thank You ${bookigData.userName} for using ERENT SERVICES.</p1>
+                 <p>Your booking Request was received, below find your details: </p>
+                 <table>
+                 <tr>
+                 <th background-color='black'>Booking Id</th>
+                 <th>User Name</th>
+                 <th>Phone</th>
+                 <th>Email</th>
+                 <th>Rooms Booked</th>
+                 <th>Move In Date</th>                 
+                 <th>Property Name</th>                 
+                 <th>Landlord Phone</th>
+                 <th>LandLord Email</th>                 
+                 </tr>
+                 <tr>
+                 <td>${bookId}</td>
+                 <td>${bookigData.userName}</td>
+                 <td>${bookigData.phone}</td>
+                 <td>${bookigData.email}</td>
+                 <td>${bookigData.noOfRooms}</td>
+                 <td>${bookigData.dateIn}</td>
+                 <td>${bookigData.propertyName}</td>
+                 <td>${bookigData.landlordPhone}</td>
+                 <td>${bookigData.landlordEmail}</td>
+                  </tr>
+                 </table>
+
+                 <h2>Thank you 😊😊</h2>
+                 <h5>Note:</h5>
+                 <p>This is a system generated mail do not reply </p>
+                 <p>for Inequiries contact: erent.support@gmail.com</p>
+
+                
+                </html>`,
+            }
+            //  send the mail now
+            transporter.sendMail(mailData,(err,success)=>{
+                if(err){
+                    console.log(`  send email error (Booking)  error:${err}`)
+                }else{
+                
+                    console.log(`Email sent \n  ` );
+                   
+                }
+            }) 
+            const successMessage= 'Check Your email for your booking details and acknowledgement';
+            res.send( successMessage);
+           
+            
+              // updating the booked property no of vaccant
+                        
+          //sql 
+          const sql = "UPDATE propertypost SET vaccant = vaccant -'" + bookigData.noOfRooms + "' WHERE postId = '" + postId + "'";
+        
+        //   execute 
+        con.query(sql,(err,results)=>{
+            if(err){
+                console.log(`Update vaccant error:${err}`)
+            }else{
+                console.log(`Update vaccant on :${bookigData.propertyName} successfully`);
+               
+            }
+        })
+        
+
+
+       }
+   })
+   
+
+
+});
+
+//searchin route
+routes.post('/search',(req,res)=>{
+ 
+    const category = req.body.category;
+    //sql 
+    const sql = "SELECT * FROM propertypost WHERE category = ?"
+    //execute 
+    con.query(sql,category,(err,results)=>{
+        if(err){
+            console.log(err);
+        }else{
+            
+            
+                res.send(results)
+            
+           
+        }
+    })
+})
+//reports routes users
+ routes.post('/userBookings',(req,res)=>{
+   const userId = req.body.userId;
+   //sql 
+   if(!userId){
+       console.log('No user id');
+   }else{
+       
+    const sql = "SELECT *  FROM book WHERE userId = ?";
+    //execute
+    con.query(sql,userId,(err,results)=>{
+        if(err){
+            console.log(err)
+        }else{
+            res.send(results)
+        }
+    })
+   }
+   
+
+
+ })
+// delete a booking
+routes.post('/deleteBooking',(req,res)=>{
+    const bookId= req.body.bookId;
+    //sql 
+    const sql = "DELETE FROM book WHERE bookId =?";
+    //execute
+    con.query(sql,bookId,(err,results)=>{
+        const status={
+            failed:"Failed an error occured! try again",
+            success:"Successfully delete your booking request",
+        }
+        if(err){
+            console.log(err);
+
+            res.send(status.failed);
+
+        }else{
+            
+            res.send(status.success);
+            
+        }
+    })
+
+
+
+})
+
+//reports routes landlord
+routes.post('/landlordReport',(req,res)=>{
+    const landlordId = req.body.landlordId;
+    //sql 
+    if(!landlordId){
+        console.log('No landlord id');
+    }else{
+        
+     const sql = "SELECT *  FROM book WHERE landlordId = ?";
+     //execute
+     con.query(sql,landlordId,(err,results)=>{
+         if(err){
+             console.log(err)
+         }else{
+             res.send(results)
+         }
+     })
+    }
+    
+ 
+ 
+  })
+
+ 
+
+module.exports = routes;
